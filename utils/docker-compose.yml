@@ -1,0 +1,24 @@
+influxdb:
+  image: influxdb:alpine
+  ports:
+    - 8083:8083
+    - 8086:8086
+
+chronograf:
+  image: chronograf:latest
+  links:
+      - influxdb
+  ports:
+    - 10000:10000
+
+fuzz:
+  image: quay.io/gaker/fuzz:latest
+  links:
+    - influxdb
+  ports:
+    - 8000:8000
+  links:
+    - influxdb
+  environment:
+    INFLUX_DB_NAME: 'reef'
+    AUTH_TOKEN: abc123
