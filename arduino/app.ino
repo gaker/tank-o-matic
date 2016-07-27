@@ -42,7 +42,7 @@ const unsigned int baud_host  = 9600;
 
 // set at what intervals the readings are sent to the computer 
 // (NOTE: this is not the frequency of taking the readings!)
-const unsigned int send_readings_every = 2500; // 5000;
+const unsigned int send_readings_every = 15000;
 
 unsigned long next_serial_time;
 

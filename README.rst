@@ -1,5 +1,5 @@
 ============
-tank-o-meter
+tank-o-matic
 ============
 
 
