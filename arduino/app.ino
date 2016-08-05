@@ -18,10 +18,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <Wire.h>
-#include <LiquidCrystal.h>
+#include <Adafruit_RGBLCDShield.h>
+#include <utility/Adafruit_MCP23017.h>
 
-// Change this depending on wiring.
-LiquidCrystal lcd(12, 11, 6, 5, 4, 3);
+
+// The shield uses the I2C SCL and SDA pins. On classic Arduinos
+// this is Analog 4 and 5 so you can't use those for analogRead() anymore
+// However, you can connect other I2C sensors to the I2C bus and share
+// the I2C bus.
+Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
+
+// These #defines make it easy to set the backlight color
+#define OFF 0x0
+#define RED 0x1
+#define YELLOW 0x3
+#define GREEN 0x2
+#define TEAL 0x6
+#define BLUE 0x4
+#define VIOLET 0x5
+#define WHITE 0x7
+
+bool enableDisplay = true;
 
 // A list of I2C ids that you set your circuits to.
 int channel_ids[] = {99, 100};
@@ -37,14 +54,12 @@ char const *channel_names[] = {"PH", "EC"};
 // set how many I2C circuits are attached to the Tentacle
 #define TOTAL_CIRCUITS 2
 
-// set baud rate for host serial monitor(pc/mac/other)
-const unsigned int baud_host  = 9600;
-
 // set at what intervals the readings are sent to the computer 
 // (NOTE: this is not the frequency of taking the readings!)
-const unsigned int send_readings_every = 15000;
+const unsigned int send_readings_every = 5000;
 
 unsigned long next_serial_time;
+unsigned long next_temp_time;
 
 // A 30 byte character array to hold incoming data from the sensors
 char sensordata[30];
@@ -85,26 +100,85 @@ boolean led_state = LOW;
 float temp;
 float ph;
 
+const float tempHighThreshold = 27.77;  // 82F
+const float tempLowThreshold = 23.88;  // 75F
 
-/**
- * setup()
- */
 void setup() {
-    // LCD's number of columns and rows.
-    lcd.begin(16, 2);
+  // Debugging output
+  Serial.begin(9600);
 
-    // set pinMode for the temp probe
-    pinMode(2, OUTPUT);
+  // set up the LCD's number of columns and rows: 
+  lcd.begin(16, 2);
+  
+  lcd.setBacklight(WHITE);
 
-    Serial.begin(9600);
-    Wire.begin();
+  pinMode(2, OUTPUT);
 
-    lcd.setCursor(0, 0);
-    lcd.print("Tank-o-meter");
+  Wire.begin();
+
+  lcd.print("Tank-o-meter");
 }
+
+//  // set the cursor to column 0, line 1
+//  // (note: line 1 is the second row, since counting begins with 0):
+//  lcd.setCursor(0, 1);
+//  // print the number of seconds since reset:
+//  lcd.print(millis()/1000);
+//
+//  uint8_t buttons = lcd.readButtons();
+//
+//  if (buttons) {
+//    lcd.clear();
+//    lcd.setCursor(0,0);
+//    if (buttons & BUTTON_UP) {
+//
+//      if (display == true) {
+//        lcd.noDisplay();
+//        lcd.setBacklight(OFF);
+//        display = false;  
+//      } else {
+//        lcd.setBacklight(WHITE);
+//        lcd.display();
+//        display = true;
+//      }
+//    }
+//    if (buttons & BUTTON_DOWN) {
+//      lcd.print("DOWN ");
+//      lcd.setBacklight(YELLOW);
+//    }
+//    if (buttons & BUTTON_LEFT) {
+//      lcd.print("LEFT ");
+//      lcd.setBacklight(GREEN);
+//    }
+//    if (buttons & BUTTON_RIGHT) {
+//      lcd.print("RIGHT ");
+//      lcd.setBacklight(TEAL);
+//    }
+//    if (buttons & BUTTON_SELECT) {
+//      lcd.print("SELECT ");
+//      lcd.setBacklight(VIOLET);
+//    }
+//  }
 
 
 void loop() {
+
+    uint8_t buttons = lcd.readButtons();
+
+    if (buttons) {
+      if (buttons & BUTTON_UP) {
+        if (enableDisplay == true) {
+          lcd.noDisplay();
+          lcd.setBacklight(OFF);
+          enableDisplay = false;  
+        } else {
+          lcd.setBacklight(WHITE);
+          lcd.display();
+          enableDisplay = true;  
+        }
+      }  
+    }
+  
     do_temp_reading();
     do_sensor_readings();
     do_serial();
@@ -112,20 +186,32 @@ void loop() {
 
 
 void do_temp_reading() {
-    float voltage_out;
-    digitalWrite(A0, LOW);
 
-    digitalWrite(2, HIGH);
-    delay(2);
+    if (millis() >= next_temp_time) {
+        float voltage_out;
+        digitalWrite(A0, LOW);
+        digitalWrite(2, HIGH);
+        delay(2);
+        
+        voltage_out = analogRead(0);
+        
+        digitalWrite(2, LOW);
+        
+        voltage_out = voltage_out * .0048;
+        voltage_out = voltage_out * 1000;
+        
+        temp = 0.0512 * voltage_out - 20.5128;
+          Serial.println(temp);
+          if (temp >= tempHighThreshold) {
+            lcd.setBacklight(RED);  
+          } else if (temp <= tempLowThreshold) {
+            lcd.setBacklight(BLUE);  
+          } else {
+            lcd.setBacklight(WHITE);  
+          }   
 
-    voltage_out = analogRead(0);
-
-    digitalWrite(2, LOW);
-
-    voltage_out = voltage_out * .0048;
-    voltage_out = voltage_out * 1000;
-
-    temp = 0.0512 * voltage_out - 20.5128;
+        next_temp_time = millis() + send_readings_every;
+    } 
 }
 
 
@@ -192,7 +278,7 @@ String get_salinity(String reading) {
 
 
 /** 
- * do serial communication in a "asynchronous" way
+ * do serial communication in an "asynchronous" way
  */
 void do_serial() {
     // is it time for the next serial communication?
@@ -300,4 +386,3 @@ void receive_reading() {
     // set pending to false, so we can continue to the next sensor
     request_pending = false;
 }
-

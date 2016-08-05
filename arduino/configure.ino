@@ -6,10 +6,8 @@
  *
  */
 #include <Wire.h>
-#include <LiquidCrystal.h>
-
-// Change this depending on wiring.
-LiquidCrystal lcd(12, 11, 6, 5, 4, 3);
+#include <Adafruit_RGBLCDShield.h>
+#include <utility/Adafruit_MCP23017.h>
 
 // A 30 byte character array to hold incoming data from the sensors
 char sensordata[30];
@@ -45,6 +43,21 @@ char const *cmd;
 // data from a pc/mac/other.
 char computerdata[20];
 
+// The shield uses the I2C SCL and SDA pins. On classic Arduinos
+// this is Analog 4 and 5 so you can't use those for analogRead() anymore
+// However, you can connect other I2C sensors to the I2C bus and share
+// the I2C bus.
+Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
+
+// These #defines make it easy to set the backlight color
+#define OFF 0x0
+#define RED 0x1
+#define YELLOW 0x3
+#define GREEN 0x2
+#define TEAL 0x6
+#define BLUE 0x4
+#define VIOLET 0x5
+#define WHITE 0x7
 
 /**
  * setup()
@@ -52,6 +65,8 @@ char computerdata[20];
 void setup() {
     // LCD's number of columns and rows.
     lcd.begin(16, 2);
+  
+    lcd.setBacklight(WHITE);
 
     Serial.begin(9600);
     Wire.begin();
